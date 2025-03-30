@@ -10,6 +10,10 @@ MODEL/
 
 # Fisiere audio mari
 *.wav
+*mp3
+*ogg
+*flac
 
 # Date preprocesate
 DATA/PRE_PROCESSED_DATA/
+MODEL/
