@@ -1,6 +1,0 @@
-# Ignora tot
-*
-# cu exceptia:
-!.gitignore
-!SCRIPTS/
-!MODEL/
