@@ -1,0 +1,15 @@
+# Fisiere Python generate automat
+__pycache__/
+
+# Date preprocesate (fisiere mari)
+*.npy
+
+# Modele salvate (fisiere mari)
+*.keras
+MODEL/
+
+# Fisiere audio mari
+*.wav
+
+# Date preprocesate
+DATA/PRE_PROCESSED_DATA/
