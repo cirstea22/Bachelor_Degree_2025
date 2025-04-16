@@ -2,80 +2,77 @@ import os
 import librosa
 import numpy as np
 
-# Setează calea către date (schimbă între TRAIN_DATA, VALIDATION_DATA și TEST_DATA după caz)
-data_path = r"D:\Proiect_Licenta_2025\DATA\TEST_DATA"  # exemplu pentru datele de antrenare
+def preprocess_dataset(data_path, output_dir, mode):
+    sr_target       = 22050
+    target_duration = 7
+    target_length   = sr_target * target_duration
+    min_duration    = 3
+    min_length      = sr_target * min_duration
 
-# Lista de instrumente (asigură-te că folderele din DATA corespund acestor nume)
-instruments = ['DRUM', 'GUITAR', 'PIANO', 'VIOLIN']
+    instruments = ['DRUM', 'GUITAR', 'PIANO', 'VIOLIN']
+    X, y = [], []
 
-X, y = [], []
-target_duration = 7          # durata dorită în secunde
-sr_target = 22050            # rata de eșantionare
-target_length = target_duration * sr_target  # numărul de eșantioane pentru 7 secunde
+    for idx, instr in enumerate(instruments):
+        instr_dir = os.path.join(data_path, instr)
+        if not os.path.isdir(instr_dir): continue
+        print(f"\n>>> Procesăm clasa {instr} (index {idx})")
 
-# Parcurgem fiecare instrument
-for idx, instrument in enumerate(instruments):
-    print(f"Procesez instrumentul: {instrument}")
-    instrument_path = os.path.join(data_path, instrument)
-    
-    for file in os.listdir(instrument_path):
-        if file.lower().endswith(".wav"):
-            file_path = os.path.join(instrument_path, file)
-            # Încarcă fișierul audio la rata dorită
-            audio, sr = librosa.load(file_path, sr=sr_target)
-            
-            processed_samples = []
-            if "TRAIN" in data_path.upper():
-                # Pentru datele de antrenare: NU irosim nicio informație
-                if len(audio) < target_length:
-                    # Dacă audio-ul este prea scurt: repetă conținutul pentru a obține 7 secunde
-                    reps = int(np.ceil(target_length / len(audio)))
-                    audio_extended = np.tile(audio, reps)
-                    processed_samples.append(audio_extended[:target_length])
+        for fname in os.listdir(instr_dir):
+            if not fname.lower().endswith('.wav'): continue
+            path = os.path.join(instr_dir, fname)
+            audio, _ = librosa.load(path, sr=sr_target)
+            length = len(audio)
+            # Ignoră fișierele foarte scurte
+            if length < min_length:
+                continue
+
+            segments = []
+            if mode == 'train':
+                # 3–7s → repetă până la 7s
+                if length < target_length:
+                    reps = int(np.ceil(target_length / length))
+                    seg = np.tile(audio, reps)[:target_length]
+                    segments.append(seg)
                 else:
-                    # Dacă audio-ul este mai lung, îl împărțim în segmente de 7 secunde
-                    num_full_chunks = len(audio) // target_length
-                    for i in range(num_full_chunks):
-                        chunk = audio[i * target_length: (i + 1) * target_length]
-                        processed_samples.append(chunk)
-                    # Pentru porțiunea rămasă, repetăm conținutul pentru a umple complet cele 7 secunde
-                    remainder = len(audio) % target_length
-                    if remainder > 0:
-                        remainder_audio = audio[-remainder:]
-                        reps = int(np.ceil(target_length / len(remainder_audio)))
-                        padded = np.tile(remainder_audio, reps)[:target_length]
-                        processed_samples.append(padded)
+                    # segmente complete de 7s
+                    n_full = length // target_length
+                    for i in range(n_full):
+                        segments.append(audio[i*target_length:(i+1)*target_length])
+                    # restul
+                    rem = length % target_length
+                    if rem >= min_length:
+                        tail = audio[-rem:]
+                        reps = int(np.ceil(target_length / rem))
+                        seg = np.tile(tail, reps)[:target_length]
+                        segments.append(seg)
             else:
-                # Pentru datele de validare și test: preprocesăm "normal"
-                if len(audio) < target_length:
-                    # Dacă este prea scurt, zero-pad-uiește până la target_length
-                    pad_width = target_length - len(audio)
-                    processed_samples.append(np.pad(audio, (0, pad_width), mode='constant'))
+                # validation/test: pad sau slice
+                if length < target_length:
+                    seg = np.pad(audio, (0, target_length-length), mode='constant')
                 else:
-                    # Dacă e prea lung, taie la target_length
-                    processed_samples.append(audio[:target_length])
-            
-            # Pentru fiecare segment obținut
-            for sample in processed_samples:
-                # Generare spectrogramă Mel și conversie la dB
-                spectrogram = librosa.feature.melspectrogram(y=sample, sr=sr_target, n_mels=128)
-                spectrogram_db = librosa.power_to_db(spectrogram, ref=np.max)
-                X.append(spectrogram_db)
+                    seg = audio[:target_length]
+                segments.append(seg)
+
+            # generează spectrograma Mel → dB și adaugă la X, y
+            for seg in segments:
+                melspec = librosa.feature.melspectrogram(
+                    y=seg, sr=sr_target, n_mels=128
+                )
+                melspec_db = librosa.power_to_db(melspec, ref=np.max)
+                X.append(melspec_db)
                 y.append(idx)
 
-# Convertim listele în numpy arrays
-X = np.array(X)
-y = np.array(y)
+    X = np.array(X)
+    y = np.array(y)
+    os.makedirs(output_dir, exist_ok=True)
+    np.save(os.path.join(output_dir, f'X_{mode}.npy'), X)
+    np.save(os.path.join(output_dir, f'y_{mode}.npy'), y)
+    print(f"\n→ {mode.upper()} gata: {X.shape[0]} sample‑uri salvate în {output_dir}")
 
-# Salvare automată în funcție de tipul setului de date
-if "TRAIN" in data_path.upper():
-    np.save('X_train.npy', X)
-    np.save('y_train.npy', y)
-elif "VALIDATION" in data_path.upper():
-    np.save('X_validation.npy', X)
-    np.save('y_validation.npy', y)
-elif "TEST" in data_path.upper():
-    np.save('X_test.npy', X)
-    np.save('y_test.npy', y)
-
-print(f"Finalizat! Salvate {len(X)} sample-uri din {data_path}.")
+if __name__ == "__main__":
+    BASE       = r"D:\Proiect_Licenta_2025\DATA"
+    OUT        = r"D:\Proiect_Licenta_2025\DATA\PRE_PROCESSED_DATA"
+    # Preprocesează TRAIN, VALIDATION și TEST
+    preprocess_dataset(os.path.join(BASE, 'TRAIN_DATA'),      OUT, 'train')
+    preprocess_dataset(os.path.join(BASE, 'VALIDATION_DATA'), OUT, 'validation')
+    preprocess_dataset(os.path.join(BASE, 'TEST_DATA'),       OUT, 'test')
