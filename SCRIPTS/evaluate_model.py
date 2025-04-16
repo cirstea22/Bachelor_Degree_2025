@@ -4,8 +4,8 @@ from tensorflow.keras.utils import to_categorical
 from sklearn.metrics import confusion_matrix
 
 # 1. Încarcă datele de validare
-X_validation = np.load(r"D:\Proiect_Licenta_2025\DATA\PRE_PROCESSED_DATA\X_validation.npy")
-y_val_raw = np.load(r"D:\Proiect_Licenta_2025\DATA\PRE_PROCESSED_DATA\y_validation.npy")
+X_validation = np.load(r"D:\Proiect_Licenta_2025\DATA\OLD_PRE_PROCESSED_DATA\X_validation.npy")
+y_val_raw = np.load(r"D:\Proiect_Licenta_2025\DATA\OLD_PRE_PROCESSED_DATA\y_validation.npy")
 
 # 2. Normalizează și adaugă canalul suplimentar (exact ca la antrenare)
 X_validation = X_validation / np.max(X_validation)
